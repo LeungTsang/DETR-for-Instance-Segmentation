@@ -46,11 +46,16 @@ class SetCriterion(nn.Module):
         b1 = out_mask.sum(1).expand(a.shape[1],a.shape[0]).t()
         b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
         cost_mask = 1-((a+1)/(b1+b2+1))
-
         
-        C = cost_mask+cost_cls
+        C = 5*cost_mask+cost_cls
+        print("====CLS====")
+        print(cost_cls)
+        print("====MASK====")
+        print(cost_mask)
         C = C.view(num_queries,-1).cpu()
         i, j = linear_sum_assignment(C)
+        print("====MATCH====")
+        print((i,j))
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
 
 
@@ -64,6 +69,7 @@ class SetCriterion(nn.Module):
 
 
     def forward(self, output, target):
+        print(output)
         target["mask"] = target["mask"].to(output["pred_mask"]) 
         output["pred_mask"] = F.interpolate(output["pred_mask"][:, None], size=target["mask"][0].shape[-2:], mode="bilinear", align_corners=False).squeeze(1)
 
@@ -436,7 +442,7 @@ class detr_solo(nn.Module):
         self.linear_seg = nn.Linear(hidden_dim, 256)
 
         # output positional encodings (object queries)
-        self.query_pos = nn.Parameter(torch.rand(100, hidden_dim))
+        self.query_pos = nn.Parameter(torch.rand(10, hidden_dim))
 
         # spatial positional encodings
         # note that in baseline DETR we use sine positional encodings
@@ -454,7 +460,7 @@ class detr_solo(nn.Module):
         x2 = self.backbone.layer2(x1)
         x3 = self.backbone.layer3(x2)
         x4 = self.backbone.layer4(x3)
-
+        print(x4)
         # convert from 2048 to 256 feature planes for the transformer
         h = self.conv(x4)
         # construct positional encodings
@@ -468,10 +474,14 @@ class detr_solo(nn.Module):
         
         src = pos + 0.1 * h.flatten(2).permute(2, 0, 1)
         tgt = self.query_pos.unsqueeze(1)
-
+        print("====SRC====")
+        print(src)
+        print("====TGT====")
+        print(tgt)
         h = self.transformer(src,tgt).transpose(0, 1)
         # finally project transformer outputs to class labels and bounding boxes
-
+        #print("output")
+        #print(h)
         feature_map = self.neck([x1,x2,x3,x4])
 
         feature_map = self.mask_feature(feature_map[self.mask_feature.start_level:self.mask_feature.end_level + 1])
@@ -513,5 +523,6 @@ class detr_solo(nn.Module):
 #img = img.repeat(2,1,1,1)
 
 #outputs = model(img)
+
 
 
