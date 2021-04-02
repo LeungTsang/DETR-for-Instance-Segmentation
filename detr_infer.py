@@ -21,10 +21,10 @@ from detr_solo import detr_solo
 import torchvision.transforms as T
 
 
-model = detr_solo(num_classes=6)
-state_dict = torch.load('detr_solo1.pth')
+model = detr_solo(num_classes=5)
+state_dict = torch.load('detr_solo4.pth')
 model.load_state_dict(state_dict)
-model.eval()
+model.train()
 #model.load_state_dict(state_dict)
 """
 CLASSES = [
@@ -44,7 +44,7 @@ CLASSES = [
     'toothbrush'
 ]
 """
-CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle', 'bus']
+CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle', 'N/A']
 
 transform = T.Compose([
     T.Resize(800),
@@ -81,13 +81,19 @@ def detect(im, model, transform):
 
     # propagate through the model
     print("det")
+    img = np.load("img.npy")
+    img = torch.from_numpy(img)
     outputs = model(img)
 
 
 
-    print(outputs)
+    #print(outputs)
     # keep only predictions with 0.7+ confidence
-    probas = outputs['pred_cls'].softmax(-1)[0, :, :-1]
+    print(outputs['pred_cls'])
+    probas = outputs['pred_cls'].softmax(-1)[0, :, :]
+    print(probas)
+    pred_cls = outputs["pred_cls"][0]
+    print(pred_cls.argmax(1).t())
     #keep = probas.max(-1).values > 0.7
     mask = outputs['pred_mask']#[keep]
     print(mask.shape)
@@ -95,12 +101,13 @@ def detect(im, model, transform):
     for i in range(mask.shape[0]): 
         print(probas[i])
         cl = probas[i].argmax()
+        print(probas[i][cl])
         print(CLASSES[cl])
-        plt.imshow(mask[i]) 
+        plt.imshow(mask[i]>0) 
         plt.show()
 
 
-im = Image.open('000000391895.jpg')
+im = Image.open('./img/000000391895.jpg')
 detect(im, model, transform)
 
 

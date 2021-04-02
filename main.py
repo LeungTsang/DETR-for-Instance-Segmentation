@@ -26,7 +26,7 @@ def get_args_parser():
     parser.add_argument('--num_workers', default=2, type=int)
 
     parser.add_argument('--loss_cls_w', default=1, type=float)
-    parser.add_argument('--loss_mask_w', default=2, type=float)
+    parser.add_argument('--loss_mask_w', default=5, type=float)
     parser.add_argument('--eos_coef', default=0.1, type=float,
                         help="Relative classification weight of the no-object class")
     return parser
@@ -36,8 +36,6 @@ def main(arg):
     device = torch.device(args.device)
     model = detr_solo(num_classes=5)
     model.to(device)
-    state_dict = state_dict = torch.load('detr_solo.pth')
-    model.load_state_dict(state_dict)
     model.train()
 
     weight_dict = {'loss_cls': args.loss_cls_w, 'loss_mask': args.loss_mask_w}
@@ -97,7 +95,9 @@ def main(arg):
                 #PATH = './detr_solo'+str(i)+'.pth'
                 #torch.save(model.state_dict(), PATH)
             optimizer.step()
-        PATH = './detr_solo'+str(epoch)+'.pth'
+        PATH = '/content/detr_solo'+str(epoch)+'.pth'
+        torch.save(model.state_dict(), PATH)
+        PATH = '/content/drive/MyDrive/detr_solo'+str(epoch)+'.pth'
         torch.save(model.state_dict(), PATH)
 
     print("Finish training")

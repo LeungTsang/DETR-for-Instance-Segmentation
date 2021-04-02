@@ -135,6 +135,8 @@ def resize(image, target, size, max_size=None):
 
 def pad(image, target, padding):
     # assumes that we only pad on the bottom right corners
+    print("mark")
+    print(image.shape)
     padded_image = torch.nn.functional.pad(image, (0, padding[1], 0, padding[0]))
     if target is None:
         return padded_image, None

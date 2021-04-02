@@ -48,14 +48,8 @@ class SetCriterion(nn.Module):
         cost_mask = 1-((a+1)/(b1+b2+1))
         
         C = 5*cost_mask+cost_cls
-        print("====CLS====")
-        print(cost_cls)
-        print("====MASK====")
-        print(cost_mask)
         C = C.view(num_queries,-1).cpu()
         i, j = linear_sum_assignment(C)
-        print("====MATCH====")
-        print((i,j))
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
 
 
@@ -69,7 +63,6 @@ class SetCriterion(nn.Module):
 
 
     def forward(self, output, target):
-        print(output)
         target["mask"] = target["mask"].to(output["pred_mask"]) 
         output["pred_mask"] = F.interpolate(output["pred_mask"][:, None], size=target["mask"][0].shape[-2:], mode="bilinear", align_corners=False).squeeze(1)
 
@@ -417,7 +410,7 @@ class detr_solo(nn.Module):
         super().__init__()
 
         # create ResNet-50 backbone
-        self.backbone = resnet50()
+        self.backbone = resnet50(pretrained=True)
         self.neck = FPN(in_channels=[256, 512, 1024, 2048], out_channels=256, start_level=0, num_outs=5)
         self.in_channels = 256
         self.out_channels = 256
@@ -460,7 +453,6 @@ class detr_solo(nn.Module):
         x2 = self.backbone.layer2(x1)
         x3 = self.backbone.layer3(x2)
         x4 = self.backbone.layer4(x3)
-        print(x4)
         # convert from 2048 to 256 feature planes for the transformer
         h = self.conv(x4)
         # construct positional encodings
@@ -474,10 +466,6 @@ class detr_solo(nn.Module):
         
         src = pos + 0.1 * h.flatten(2).permute(2, 0, 1)
         tgt = self.query_pos.unsqueeze(1)
-        print("====SRC====")
-        print(src)
-        print("====TGT====")
-        print(tgt)
         h = self.transformer(src,tgt).transpose(0, 1)
         # finally project transformer outputs to class labels and bounding boxes
         #print("output")
