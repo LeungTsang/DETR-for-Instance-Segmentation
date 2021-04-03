@@ -34,12 +34,12 @@ def get_args_parser():
 def main(arg):
 
     device = torch.device(args.device)
-    model = detr_solo(num_classes=5)
+    model = detr_solo(num_classes=18)
     model.to(device)
     model.train()
 
     weight_dict = {'loss_cls': args.loss_cls_w, 'loss_mask': args.loss_mask_w}
-    criterion = SetCriterion(num_classes=5, weight_dict=weight_dict, eos_coef=args.eos_coef)
+    criterion = SetCriterion(num_classes=18, weight_dict=weight_dict, eos_coef=args.eos_coef)
     criterion.train()
 
     dataset_train = coco.build_dataset(image_set='train', args=args)
@@ -74,8 +74,8 @@ def main(arg):
             optimizer.zero_grad()
             #print(img.shape)
             output = model(img)
-            cls = output['pred_cls'].cpu().detach().numpy()
-            mask = output['pred_mask'].cpu().detach().numpy()
+            #cls = output['pred_cls'].cpu().detach().numpy()
+            #mask = output['pred_mask'].cpu().detach().numpy()
             loss_dict = criterion(output, target)
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)

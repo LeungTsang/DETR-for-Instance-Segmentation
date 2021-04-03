@@ -59,7 +59,7 @@ def main(arg):
     device = torch.device(args.device)
     model = detr_solo(num_classes=18)
     model.to(device)
-    state_dict = state_dict = torch.load('detr_solo_cat2000.pth')
+    state_dict = state_dict = torch.load('detr_solo_Cat0.pth')
     model.load_state_dict(state_dict)
     model.eval()
 

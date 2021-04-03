@@ -47,7 +47,7 @@ class SetCriterion(nn.Module):
         b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
         cost_mask = 1-((a+1)/(b1+b2+1))
         
-        C = 1*cost_mask+cost_cls
+        C = 5*cost_mask+cost_cls
         C = C.view(num_queries,-1).cpu()
         i, j = linear_sum_assignment(C)
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
