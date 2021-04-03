@@ -47,7 +47,7 @@ class SetCriterion(nn.Module):
         b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
         cost_mask = 1-((a+1)/(b1+b2+1))
         
-        C = 5*cost_mask+cost_cls
+        C = 1*cost_mask+cost_cls
         C = C.view(num_queries,-1).cpu()
         i, j = linear_sum_assignment(C)
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
@@ -59,7 +59,7 @@ class SetCriterion(nn.Module):
         numerator = 2 * (pred * target).sum(1)
         denominator = pred.sum(1) + target.sum(1)
         loss = 1-(numerator + 1) / (denominator + 1)
-        return loss.sum()/num
+        return loss.sum()/max(num,1)
 
 
     def forward(self, output, target):
@@ -70,6 +70,8 @@ class SetCriterion(nn.Module):
         pred_cls = output["pred_cls"][0]
         target_cls = torch.full(pred_cls.shape[:1], self.num_classes, dtype=torch.int64, device=pred_cls.device)
         target_cls[src] = target["cls"][0][tgt]
+        print(pred_cls.argmax(1))
+        print(target_cls)
         loss_cls = F.cross_entropy(pred_cls, target_cls, self.empty_weight)
 
         pred_mask = output["pred_mask"][src]
@@ -285,6 +287,19 @@ class ConvModule(nn.Module):
         x = self.activate(x)
         return x
 """
+class MLP(nn.Module):
+    """ Very simple multi-layer perceptron (also called FFN)"""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
 
 class MF(nn.Module):
     def __init__(self,
@@ -432,7 +447,8 @@ class detr_solo(nn.Module):
         # prediction heads, one extra class for predicting non-empty slots
         # note that in baseline DETR linear_bbox layer is 3-layer MLP
         self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
-        self.linear_seg = nn.Linear(hidden_dim, 256)
+        #self.linear_seg = nn.Linear(hidden_dim, 256)
+        self.linear_seg = MLP(hidden_dim, hidden_dim, 256, 4)
 
         # output positional encodings (object queries)
         self.query_pos = nn.Parameter(torch.rand(10, hidden_dim))
