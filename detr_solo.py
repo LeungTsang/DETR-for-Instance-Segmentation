@@ -16,71 +16,7 @@ from mmcv.cnn import constant_init, kaiming_init
 from mmcv.runner import auto_fp16
 from scipy.optimize import linear_sum_assignment
 
-class SetCriterion(nn.Module):
 
-    def __init__(self, num_classes, weight_dict, eos_coef):
-
-        super().__init__()
-        self.num_classes = num_classes
-        self.weight_dict = weight_dict
-        self.eos_coef = eos_coef
-        empty_weight = torch.ones(self.num_classes + 1).cuda()
-        empty_weight[-1] = self.eos_coef
-        self.register_buffer('empty_weight', empty_weight)
-
-    @torch.no_grad()
-    def match(self, output, target):
-        num_queries = output["pred_cls"].shape[1]
-
-        out_cls = output["pred_cls"][0]
-        out_mask = output["pred_mask"]
-        tgt_cls = target["cls"][0]
-        tgt_mask = target["mask"][0]
-
-        tgt_mask = tgt_mask.flatten(1, 2)
-        out_mask = out_mask.flatten(1, 2)
-
-        cost_cls = -out_cls[:,tgt_cls]
-
-        a = 2*torch.mm(out_mask, tgt_mask.t())
-        b1 = out_mask.sum(1).expand(a.shape[1],a.shape[0]).t()
-        b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
-        cost_mask = 1-((a+1)/(b1+b2+1))
-        
-        C = 5*cost_mask+cost_cls
-        C = C.view(num_queries,-1).cpu()
-        i, j = linear_sum_assignment(C)
-        return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
-
-
-    def dice_loss(self, pred, target, num):
-        pred = pred.flatten(1, 2)
-        target = target.flatten(1, 2)
-        numerator = 2 * (pred * target).sum(1)
-        denominator = pred.sum(1) + target.sum(1)
-        loss = 1-(numerator + 1) / (denominator + 1)
-        return loss.sum()/max(num,1)
-
-
-    def forward(self, output, target):
-        target["mask"] = target["mask"].to(output["pred_mask"]) 
-        output["pred_mask"] = F.interpolate(output["pred_mask"][:, None], size=target["mask"][0].shape[-2:], mode="bilinear", align_corners=False).squeeze(1)
-
-        src, tgt = self.match(output,target)
-        pred_cls = output["pred_cls"][0]
-        target_cls = torch.full(pred_cls.shape[:1], self.num_classes, dtype=torch.int64, device=pred_cls.device)
-        target_cls[src] = target["cls"][0][tgt]
-        print(pred_cls.argmax(1))
-        print(target_cls)
-        loss_cls = F.cross_entropy(pred_cls, target_cls, self.empty_weight)
-
-        pred_mask = output["pred_mask"][src]
-        target_mask = target["mask"][0][tgt]
-        loss_mask = self.dice_loss(pred_mask, target_mask, target_mask.shape[0])
-
-        losses = {"loss_cls":loss_cls,"loss_mask":loss_mask}
-        print(losses)
-        return losses
 
 class FPN(nn.Module):
 
@@ -407,6 +343,89 @@ class MF(nn.Module):
         feature_pred = self.conv_pred(feature_add_all_level)
         return feature_pred
 
+class SetCriterion(nn.Module):
+
+    def __init__(self, num_classes, N, weight_dict, eos_coef):
+
+        super().__init__()
+        self.num_classes = num_classes
+        self.N = N
+        self.weight_dict = weight_dict
+        self.eos_coef = eos_coef
+        empty_weight = torch.ones(self.num_classes + 1).cuda()
+        empty_weight[-1] = self.eos_coef
+        self.register_buffer('empty_weight', empty_weight)
+
+    @torch.no_grad()
+    def match(self, output, target):
+        num_queries = output["pred_cls"].shape[1]
+
+        out_cls = output["pred_cls"][0]
+        out_mask = output["pred_mask"]
+        tgt_cls = target["cls"][0]
+        tgt_mask = target["mask"][0]
+
+        tgt_mask = tgt_mask.flatten(1, 2)
+        out_mask = out_mask.flatten(1, 2)
+
+        cost_cls = -out_cls[:,tgt_cls]
+
+        a = 2*torch.mm(out_mask, tgt_mask.t())
+        b1 = out_mask.sum(1).expand(a.shape[1],a.shape[0]).t()
+        b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
+        cost_mask = 1-((a+1)/(b1+b2+1))
+        
+        C = 5*cost_mask+cost_cls
+        C = C.view(num_queries,-1).cpu()
+        i, j = linear_sum_assignment(C)
+        return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
+
+
+    def dice_loss(self, pred, target, num):
+        pred = pred.flatten(1, 2)
+        target = target.flatten(1, 2)
+        numerator = 2 * (pred * target).sum(1)
+        denominator = pred.sum(1) + target.sum(1)
+        loss = 1-(numerator + 1) / (denominator + 1)
+        return loss.sum()/max(num,1)
+
+    def cos_distance(self, A):
+        prod = torch.mm(A, A.t())
+        norm = torch.norm(A,p=2,dim=1).unsqueeze(0)
+        cos = prod.div(torch.mm(norm.t(),norm))
+        return cos
+    
+    
+    def forward(self, output, target):
+        seed = output["raw_seed"][0]
+        cos = self.cos_distance(seed)
+        print(cos)
+        cos = torch.exp(cos)
+        loss_contrastive = -torch.log(1/(cos.sum(0))).sum()/self.N
+        print(loss_contrastive)
+        
+        
+        target["mask"] = target["mask"].to(output["pred_mask"]) 
+        output["pred_mask"] = F.interpolate(output["pred_mask"][:, None], size=target["mask"][0].shape[-2:], mode="bilinear", align_corners=False).squeeze(1)
+
+        src, tgt = self.match(output,target)
+        pred_cls = output["pred_cls"][0]
+        target_cls = torch.full(pred_cls.shape[:1], self.num_classes, dtype=torch.int64, device=pred_cls.device)
+        target_cls[src] = target["cls"][0][tgt]
+        print(pred_cls.argmax(1))
+        print(target_cls)
+        loss_cls = F.cross_entropy(pred_cls, target_cls, self.empty_weight)
+
+        pred_mask = output["pred_mask"][src]
+        target_mask = target["mask"][0][tgt]
+        loss_mask = self.dice_loss(pred_mask, target_mask, target_mask.shape[0])
+        
+        #loss_contrastive =
+        #loss_mask_invalid = self.dice_loss(invalid_mask, empty_mask, empty_mask.shape[0])
+
+        losses = {"loss_cls":loss_cls,"loss_mask":loss_mask, "loss_contrastive":loss_contrastive}
+        print(losses)
+        return losses
 
 class detr_solo(nn.Module):
     """
@@ -420,7 +439,7 @@ class detr_solo(nn.Module):
     The model achieves ~40 AP on COCO val5k and runs at ~28 FPS on Tesla V100.
     Only batch size 1 supported.
     """
-    def __init__(self, num_classes, hidden_dim=256, nheads=8,
+    def __init__(self, num_classes, N = 100, hidden_dim=256, nheads=8,
                  num_encoder_layers=6, num_decoder_layers=6):
         super().__init__()
 
@@ -451,7 +470,7 @@ class detr_solo(nn.Module):
         self.linear_seg = MLP(hidden_dim, hidden_dim, 256, 4)
 
         # output positional encodings (object queries)
-        self.query_pos = nn.Parameter(torch.rand(10, hidden_dim))
+        self.query_pos = nn.Parameter(torch.rand(N, hidden_dim))
 
         # spatial positional encodings
         # note that in baseline DETR we use sine positional encodings
@@ -499,7 +518,8 @@ class detr_solo(nn.Module):
         seg_preds = F.conv2d(feature_map, seg_kernel, stride=1).squeeze(0).sigmoid()
 
         return {'pred_cls': cls, 
-                'pred_mask': seg_preds}
+                'pred_mask': seg_preds,
+                'raw_seed': h}
 
 
 

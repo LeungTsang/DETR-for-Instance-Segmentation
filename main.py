@@ -27,6 +27,7 @@ def get_args_parser():
 
     parser.add_argument('--loss_cls_w', default=1, type=float)
     parser.add_argument('--loss_mask_w', default=5, type=float)
+    parser.add_argument('--loss_contrastive_w', default=0.1, type=float)
     parser.add_argument('--eos_coef', default=0.1, type=float,
                         help="Relative classification weight of the no-object class")
     return parser
@@ -34,12 +35,14 @@ def get_args_parser():
 def main(arg):
 
     device = torch.device(args.device)
-    model = detr_solo(num_classes=18)
+    model = detr_solo(num_classes=5)
     model.to(device)
+    #state_dict = state_dict = torch.load('detr_solo5.pth')
+    #model.load_state_dict(state_dict)
     model.train()
 
-    weight_dict = {'loss_cls': args.loss_cls_w, 'loss_mask': args.loss_mask_w}
-    criterion = SetCriterion(num_classes=18, weight_dict=weight_dict, eos_coef=args.eos_coef)
+    weight_dict = {'loss_cls': args.loss_cls_w, 'loss_mask': args.loss_mask_w, 'loss_contrastive': args.loss_contrastive_w}
+    criterion = SetCriterion(num_classes=5, weight_dict=weight_dict, eos_coef=args.eos_coef)
     criterion.train()
 
     dataset_train = coco.build_dataset(image_set='train', args=args)
@@ -67,38 +70,30 @@ def main(arg):
         running_loss = 0.0
         for i, data in enumerate(data_loader_train, 0):
             img, target = data
-            #print(type(img))
             img = img.to(device)
             target = {k: v.to(device) for k, v in target.items()}
 
             optimizer.zero_grad()
-            #print(img.shape)
             output = model(img)
-            #cls = output['pred_cls'].cpu().detach().numpy()
-            #mask = output['pred_mask'].cpu().detach().numpy()
             loss_dict = criterion(output, target)
             weight_dict = criterion.weight_dict
             losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
             
 
             losses.backward()
-            #optimizer.zero_grad()
             if args.clip_max_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip_max_norm)
-            #optimizer.step()
             running_loss += losses.item()
             if i%100 == 0:
                 print('[%d, %5d] loss: %.3f' %
                     (epoch + 1, i + 1, running_loss ))
                 running_loss = 0.0
                 print(loss_dict)
-                #PATH = './detr_solo'+str(i)+'.pth'
-                #torch.save(model.state_dict(), PATH)
             optimizer.step()
-        PATH = '/content/detr_solo'+str(epoch)+'.pth'
-        torch.save(model.state_dict(), PATH)
-        PATH = '/content/drive/MyDrive/detr_solo'+str(epoch)+'.pth'
-        torch.save(model.state_dict(), PATH)
+        #PATH = '/content/detr_solo'+str(epoch)+'.pth'
+        #torch.save(model.state_dict(), PATH)
+        #PATH = '/content/drive/MyDrive/detr_solo'+str(epoch)+'.pth'
+        #torch.save(model.state_dict(), PATH)
 
     print("Finish training")
 

@@ -57,9 +57,9 @@ CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
 def main(arg):
 
     device = torch.device(args.device)
-    model = detr_solo(num_classes=18)
+    model = detr_solo(num_classes=18, N=100)
     model.to(device)
-    state_dict = state_dict = torch.load('detr_solo_Cat0.pth')
+    state_dict = state_dict = torch.load('detr_solo_cat_100_.pth')
     model.load_state_dict(state_dict)
     model.eval()
 
@@ -70,7 +70,7 @@ def main(arg):
     pred_mask = output["pred_mask"]
     probas = output['pred_cls'].softmax(-1)[0, :, :]
     print(pred_mask.shape)
-    for i in range(10):
+    for i in range(100):
         print(CLASSES[probas[i].argmax()])
         plt.imshow(pred_mask[i].detach().cpu()) 
         plt.show()
