@@ -47,33 +47,40 @@ CLASSES = [
     'N/A', 'toilet', 'N/A', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
     'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator', 'N/A',
     'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
-    'toothbrush'
+    'toothbrush', 'N/A'
 ]
 
-CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
-    'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A',
-    'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'N/A', 'N/A']
+#CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+#    'train', 'truck', 'boat', 'traffic light', 'fire hydrant', 'N/A',
+#    'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'N/A']
+    
+#CLASSES = ['N/A', 'person', 'bicycle', 'car', 'motorcycle','N/A']
 
 def main(arg):
 
     device = torch.device(args.device)
-    model = detr_solo(num_classes=18, N=100)
+    model = detr_solo(num_classes=5, N=100)
     model.to(device)
-    state_dict = state_dict = torch.load('detr_solo_cat_100_.pth')
+    state_dict = state_dict = torch.load('detr_solo0 (3).pth')
     model.load_state_dict(state_dict)
-    model.eval()
+    model.train()
 
-    img = Image.open('./img/000000000977.jpg')
+    img = Image.open('./img/img2.jpg')
     img = pad(transform(img),32)
     img = img.to(device).unsqueeze(0)
     output = model(img)
     pred_mask = output["pred_mask"]
     probas = output['pred_cls'].softmax(-1)[0, :, :]
     print(pred_mask.shape)
-    for i in range(100):
-        print(CLASSES[probas[i].argmax()])
-        plt.imshow(pred_mask[i].detach().cpu()) 
-        plt.show()
+    H = 10
+    W = 10
+    for i in range(H):
+        for j in range(W):
+            plt.subplot(H,W,i*W+j+1)
+            cl = probas[i*W+j].argmax()
+            plt.title(CLASSES[cl])
+            plt.imshow(pred_mask[i*W+j].detach().cpu()) 
+    plt.show()
         #loss_dict = criterion(output, target)
         #weight_dict = criterion.weight_dict
         #losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)

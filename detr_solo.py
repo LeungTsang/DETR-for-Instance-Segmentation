@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 #%config InlineBackend.figure_format = 'retina'
 
 import torch
+import numpy as np
 from torch import nn
 from torchvision.models import resnet50
 import torchvision.transforms as T
@@ -350,6 +351,7 @@ class SetCriterion(nn.Module):
         super().__init__()
         self.num_classes = num_classes
         self.N = N
+        self.p = np.ones(N)
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
         empty_weight = torch.ones(self.num_classes + 1).cuda()
@@ -364,20 +366,32 @@ class SetCriterion(nn.Module):
         out_mask = output["pred_mask"]
         tgt_cls = target["cls"][0]
         tgt_mask = target["mask"][0]
+        if tgt_cls.numel() == 0:
+            return torch.as_tensor([], dtype=torch.int64), torch.as_tensor([], dtype=torch.int64)
 
         tgt_mask = tgt_mask.flatten(1, 2)
         out_mask = out_mask.flatten(1, 2)
 
         cost_cls = -out_cls[:,tgt_cls]
+        cls_min = cost_cls.min()
+        cls_max = cost_cls.max()
+        cost_cls = (cost_cls-cls_min)/(cls_max-cls_min)
 
         a = 2*torch.mm(out_mask, tgt_mask.t())
         b1 = out_mask.sum(1).expand(a.shape[1],a.shape[0]).t()
         b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
         cost_mask = 1-((a+1)/(b1+b2+1))
         
+        P = self.p/self.p.sum()*self.N
+        print(P)
+        
+        
         C = 5*cost_mask+cost_cls
         C = C.view(num_queries,-1).cpu()
+        cost_balance = np.tile(P,(C.shape[1],1))
+        C = C+0.1*cost_balance.T
         i, j = linear_sum_assignment(C)
+        self.p[i] += 1
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
 
 
@@ -399,10 +413,10 @@ class SetCriterion(nn.Module):
     def forward(self, output, target):
         seed = output["raw_seed"][0]
         cos = self.cos_distance(seed)
-        print(cos)
+        #print(cos)
         cos = torch.exp(cos)
         loss_contrastive = -torch.log(1/(cos.sum(0))).sum()/self.N
-        print(loss_contrastive)
+        #print(loss_contrastive)
         
         
         target["mask"] = target["mask"].to(output["pred_mask"]) 
@@ -465,7 +479,8 @@ class detr_solo(nn.Module):
 
         # prediction heads, one extra class for predicting non-empty slots
         # note that in baseline DETR linear_bbox layer is 3-layer MLP
-        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
+        #self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
+        self.linear_class = MLP(hidden_dim, hidden_dim, num_classes + 1, 2)
         #self.linear_seg = nn.Linear(hidden_dim, 256)
         self.linear_seg = MLP(hidden_dim, hidden_dim, 256, 4)
 
