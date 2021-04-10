@@ -59,15 +59,9 @@ CLASSES = [
 def main(arg):
 
     device = torch.device(args.device)
-<<<<<<< HEAD
     model = detr_solo(num_classes=5, N=100)
     model.to(device)
-    state_dict = state_dict = torch.load('detr_solo0 (3).pth')
-=======
-    model = detr_solo(num_classes=18)
-    model.to(device)
-    state_dict = state_dict = torch.load('detr_solo_Cat0.pth')
->>>>>>> parent of 8baf65b (3.0)
+    state_dict = state_dict = torch.load('detr_solo.pth')
     model.load_state_dict(state_dict)
     model.train()
 
@@ -78,22 +72,16 @@ def main(arg):
     pred_mask = output["pred_mask"]
     probas = output['pred_cls'].softmax(-1)[0, :, :]
     print(pred_mask.shape)
-<<<<<<< HEAD
-    H = 10
-    W = 10
+    H = 2
+    W = 5
     for i in range(H):
         for j in range(W):
             plt.subplot(H,W,i*W+j+1)
             cl = probas[i*W+j].argmax()
             plt.title(CLASSES[cl])
-            plt.imshow(pred_mask[i*W+j].detach().cpu()) 
+            plt.imshow(pred_mask[i*W+j].detach().cpu())
+    plt.savefig("mask.png") 
     plt.show()
-=======
-    for i in range(10):
-        print(CLASSES[probas[i].argmax()])
-        plt.imshow(pred_mask[i].detach().cpu()) 
-        plt.show()
->>>>>>> parent of 8baf65b (3.0)
         #loss_dict = criterion(output, target)
         #weight_dict = criterion.weight_dict
         #losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
