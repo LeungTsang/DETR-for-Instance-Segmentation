@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 #%config InlineBackend.figure_format = 'retina'
 
 import torch
-import numpy as np
 from torch import nn
 from torchvision.models import resnet50
 import torchvision.transforms as T
@@ -351,7 +350,6 @@ class SetCriterion(nn.Module):
         super().__init__()
         self.num_classes = num_classes
         self.N = N
-        self.p = np.ones(N)
         self.weight_dict = weight_dict
         self.eos_coef = eos_coef
         empty_weight = torch.ones(self.num_classes + 1).cuda()
@@ -366,32 +364,20 @@ class SetCriterion(nn.Module):
         out_mask = output["pred_mask"]
         tgt_cls = target["cls"][0]
         tgt_mask = target["mask"][0]
-        if tgt_cls.numel() == 0:
-            return torch.as_tensor([], dtype=torch.int64), torch.as_tensor([], dtype=torch.int64)
 
         tgt_mask = tgt_mask.flatten(1, 2)
         out_mask = out_mask.flatten(1, 2)
 
         cost_cls = -out_cls[:,tgt_cls]
-        cls_min = cost_cls.min()
-        cls_max = cost_cls.max()
-        cost_cls = (cost_cls-cls_min)/(cls_max-cls_min)
 
         a = 2*torch.mm(out_mask, tgt_mask.t())
         b1 = out_mask.sum(1).expand(a.shape[1],a.shape[0]).t()
         b2 = tgt_mask.sum(1).expand(a.shape[0],a.shape[1])
         cost_mask = 1-((a+1)/(b1+b2+1))
         
-        P = self.p/self.p.sum()*self.N
-        print(P)
-        
-        
         C = 5*cost_mask+cost_cls
         C = C.view(num_queries,-1).cpu()
-        cost_balance = np.tile(P,(C.shape[1],1))
-        C = C+0.1*cost_balance.T
         i, j = linear_sum_assignment(C)
-        self.p[i] += 1
         return torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)
 
 
@@ -401,7 +387,7 @@ class SetCriterion(nn.Module):
         numerator = 2 * (pred * target).sum(1)
         denominator = pred.sum(1) + target.sum(1)
         loss = 1-(numerator + 1) / (denominator + 1)
-        return loss.sum()/max(num,1)
+        return loss.sum()
 
     def cos_distance(self, A):
         prod = torch.mm(A, A.t())
@@ -475,12 +461,11 @@ class detr_solo(nn.Module):
 
         # create a default PyTorch transformer
         self.transformer = nn.Transformer(
-            hidden_dim, nheads, num_encoder_layers, num_decoder_layers)
+            hidden_dim, nheads, num_encoder_layers, num_decoder_layers, dropout = 0)
 
         # prediction heads, one extra class for predicting non-empty slots
         # note that in baseline DETR linear_bbox layer is 3-layer MLP
-        #self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
-        self.linear_class = MLP(hidden_dim, hidden_dim, num_classes + 1, 2)
+        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
         #self.linear_seg = nn.Linear(hidden_dim, 256)
         self.linear_seg = MLP(hidden_dim, hidden_dim, 256, 4)
 
@@ -504,7 +489,12 @@ class detr_solo(nn.Module):
         x3 = self.backbone.layer3(x2)
         x4 = self.backbone.layer4(x3)
         # convert from 2048 to 256 feature planes for the transformer
-        h = self.conv(x4)
+
+        feature_map = self.neck([x1,x2,x3,x4])
+        feature_map = self.mask_feature(feature_map[self.mask_feature.start_level:self.mask_feature.end_level + 1])
+        sub_feature_map = feature_map[:,:,::8,::8]
+
+        h = sub_feature_map
         # construct positional encodings
         H, W = h.shape[-2:]
         pos = torch.cat([
@@ -520,9 +510,7 @@ class detr_solo(nn.Module):
         # finally project transformer outputs to class labels and bounding boxes
         #print("output")
         #print(h)
-        feature_map = self.neck([x1,x2,x3,x4])
 
-        feature_map = self.mask_feature(feature_map[self.mask_feature.start_level:self.mask_feature.end_level + 1])
         #print(feature_map.shape)
 
         cls = self.linear_class(h)
@@ -562,6 +550,5 @@ class detr_solo(nn.Module):
 #img = img.repeat(2,1,1,1)
 
 #outputs = model(img)
-
 
 

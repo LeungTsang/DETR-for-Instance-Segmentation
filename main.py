@@ -35,14 +35,14 @@ def get_args_parser():
 def main(arg):
 
     device = torch.device(args.device)
-    model = detr_solo(num_classes=5)
+    model = detr_solo(num_classes=18, N=10)
     model.to(device)
     #state_dict = state_dict = torch.load('detr_solo5.pth')
     #model.load_state_dict(state_dict)
     model.train()
 
     weight_dict = {'loss_cls': args.loss_cls_w, 'loss_mask': args.loss_mask_w, 'loss_contrastive': args.loss_contrastive_w}
-    criterion = SetCriterion(num_classes=5, weight_dict=weight_dict, eos_coef=args.eos_coef)
+    criterion = SetCriterion(num_classes=18, N=10, weight_dict=weight_dict, eos_coef=args.eos_coef)
     criterion.train()
 
     dataset_train = coco.build_dataset(image_set='train', args=args)
@@ -105,4 +105,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args)
-
