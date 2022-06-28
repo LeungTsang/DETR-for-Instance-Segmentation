@@ -1,5 +1,5 @@
 # Sparetime Project
-# DETR_SOLO: Extend DETR object detection to instance segmentation based on convolutional kernel prediction(SOLO), a toy example  
+# DETR_SOLO: Extend DETR object detection to instance segmentation by predicting convolutional kernel prediction(like SOLO), a toy example  
 DETR:End-to-End Object Detection with Transformers https://arxiv.org/abs/2005.12872  
 <img src="https://github.com/LeungTsang/detr_solo/raw/main/fig/DETR.png" width="400px">  
 SOLO:SOLOv2: Dynamic and Fast Instance Segmentation https://arxiv.org/abs/2003.10152  
