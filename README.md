@@ -1,7 +1,7 @@
 # Sparetime Project
 # DETR_SOLO: Extend DETR object detection to instance segmentation based on convolutional kernel prediction(SOLO), a toy example  
 DETR  
-<img src="[./xxx.png](https://github.com/LeungTsang/detr_solo/raw/main/fig/DETR.png =300)" width = "300" height = "200" alt="图片名称" align=center />
+<img src="[https://github.com/LeungTsang/detr_solo/raw/main/fig/DETR.png](" width = "300" height = "200" alt="图片名称" align=center />
 SOLO  
 ![SOLO](https://github.com/LeungTsang/detr_solo/raw/main/fig/SOLO.png =300)  
 Architecture of the DETR_SOLO  
